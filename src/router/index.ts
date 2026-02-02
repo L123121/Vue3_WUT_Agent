@@ -22,7 +22,7 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach((to,_, next) => {
   const authStore = useAuthStore();
   if (to.meta.requiresAuth && !authStore.user) {
     next('/login');
