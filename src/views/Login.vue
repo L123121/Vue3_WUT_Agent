@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth.store.ts';
-import { User, Lock, ArrowRight, Loader2, GraduationCap } from 'lucide-vue-next';
+import { User, Lock, ArrowRight, Loader2 } from 'lucide-vue-next';
+import wutLogoImg from '../assets/wuhan-university-logo.png';
+
+const wutLogo = wutLogoImg;
 
 const authStore = useAuthStore();
 
@@ -49,8 +52,8 @@ const handleSubmit = async () => {
         <!-- Header Section -->
         <div class="pt-12 pb-8 px-10 text-center">
           <div class="flex justify-center mb-8">
-            <div class="w-24 h-24 rounded-3xl bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center shadow-2xl shadow-blue-900/30 transform hover:scale-105 transition-all duration-500 rotate-3 hover:rotate-0 ring-4 ring-white/50 dark:ring-gray-700/50">
-               <GraduationCap :size="48" class="text-yellow-400 drop-shadow-md" :strokeWidth="1.5" />
+            <div class="w-44 h-44 rounded-full overflow-hidden flex items-center justify-center transform hover:scale-105 transition-all duration-500 rotate-3 hover:rotate-0 ring-4 ring-white/50 dark:ring-blue-900/30 shadow-[0_0_50px_rgba(37,99,235,0.2)]">
+               <img :src="wutLogo" alt="WUT Logo" class="w-full h-full object-cover scale-110 drop-shadow-2xl" />
             </div>
           </div>
           <h2 class="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">欢迎回来</h2>
