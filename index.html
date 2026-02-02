@@ -65,28 +65,10 @@
         animation: fadeIn 0.4s ease-out forwards;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "vue": "https://esm.sh/vue@3.3.4",
-    "vue-router": "https://esm.sh/vue-router@4.2.5",
-    "pinia": "https://esm.sh/pinia@2.1.7",
-    "lucide-vue-next": "https://esm.sh/lucide-vue-next@0.344.0",
-    "marked": "https://esm.sh/marked@12.0.0",
-    "cors": "https://esm.sh/cors@^2.8.6",
-    "dotenv": "https://esm.sh/dotenv@^17.2.3",
-    "morgan": "https://esm.sh/morgan@^1.10.1",
-    "helmet": "https://esm.sh/helmet@^8.1.0",
-    "express": "https://esm.sh/express@^5.2.1",
-    "axios": "https://esm.sh/axios@^1.13.4"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+  </head>
   <body>
-    <div id="root"></div>
+    <div id="app"></div> <!-- 注意：这里应该是 id="app" 而不是 id="root" -->
     <script type="module" src="/src/main.ts"></script>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <!-- 移除 <script type="module" src="/index.tsx"></script> -->
+  </body>
 </html>
