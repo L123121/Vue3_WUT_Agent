@@ -25,6 +25,8 @@ export interface User {
   id: string;
   name: string;
   avatar: string;
+  college?: string;
+  grade?: string;
 }
 
 export interface Notification {

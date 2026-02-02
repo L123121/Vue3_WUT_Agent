@@ -38,13 +38,32 @@ export const useChatStore = defineStore('chat', () => {
 
       const responseText = await sendMessageToBackend(text, history);
 
+      // 模拟流式输出效果（Typewriter Effect）
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: responseText,
+        text: '', // 初始为空
         timestamp: new Date(),
       };
       messages.value.push(aiMsg);
+
+      // 分段显示文本
+      const chunkSize = 5; // 每次显示的字符数
+      let currentIndex = 0;
+      
+      return new Promise<void>((resolve) => {
+        const typeWriter = setInterval(() => {
+          if (currentIndex < responseText.length) {
+            aiMsg.text += responseText.slice(currentIndex, currentIndex + chunkSize);
+            currentIndex += chunkSize;
+          } else {
+            aiMsg.text = responseText; // 确保最终文本完整
+            clearInterval(typeWriter);
+            resolve();
+          }
+        }, 30); // 每30ms更新一次
+      });
+
     } catch (error) {
       messages.value.push({
         id: Date.now().toString(),
