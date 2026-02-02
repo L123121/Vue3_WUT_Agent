@@ -2,39 +2,47 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '../stores/auth.store.ts';
 import { useThemeStore } from '../stores/theme.store.ts';
-import { Bell, Moon, Globe, Shield, ChevronRight, Mail, X, Loader2, Check, AlertCircle, Lock } from 'lucide-vue-next';
+import { useNotificationStore } from '../stores/notification.store.ts';
+import { Bell, Moon, Globe, Shield, ChevronRight, Mail, X, Loader2, Check, AlertCircle, Lock, MessageSquare, Info } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const themeStore = useThemeStore();
+const notificationStore = useNotificationStore();
 
 const user = computed(() => authStore.user!);
 const darkMode = computed(() => themeStore.darkMode);
-
-// General Settings
-const notifications = ref(true);
 
 // Account State
 const email = ref("student@whut.edu.cn");
 
 // Modal State
-const activeModal = ref<'none' | 'email' | 'password'>('none');
+const activeModal = ref<'none' | 'email' | 'password' | 'profile'>('none');
 const isLoading = ref(false);
 const feedback = ref<{type: 'success' | 'error', text: string} | null>(null);
 
 // Form State
 const tempEmail = ref('');
 const passwordForm = ref({ old: '', new: '', confirm: '' });
+const profileForm = ref({ name: '', college: '', grade: '' });
 
 const resetForm = () => {
   tempEmail.value = '';
   passwordForm.value = { old: '', new: '', confirm: '' };
+  profileForm.value = { name: '', college: '', grade: '' };
   feedback.value = null;
   isLoading.value = false;
 };
 
-const openModal = (type: 'email' | 'password') => {
+const openModal = (type: 'email' | 'password' | 'profile') => {
   resetForm();
   if (type === 'email') tempEmail.value = email.value;
+  if (type === 'profile') {
+    profileForm.value = {
+      name: user.value.name,
+      college: user.value.college || '',
+      grade: user.value.grade || ''
+    };
+  }
   activeModal.value = type;
 };
 
@@ -97,6 +105,24 @@ const handleSavePassword = () => {
     setTimeout(closeModal, 1500);
   }, 1000);
 };
+
+const handleSaveProfile = () => {
+  if (!profileForm.value.name) {
+    feedback.value = { type: 'error', text: '昵称不能为空' };
+    return;
+  }
+
+  isLoading.value = true;
+  feedback.value = null;
+
+  // Simulate API call
+  setTimeout(() => {
+    authStore.updateUser(profileForm.value);
+    isLoading.value = false;
+    feedback.value = { type: 'success', text: '资料修改成功！' };
+    setTimeout(closeModal, 1500);
+  }, 1000);
+};
 </script>
 
 <template>
@@ -108,7 +134,7 @@ const handleSavePassword = () => {
       </div>
       <div class="ml-6 flex-1">
         <h2 class="text-xl font-bold text-slate-800 dark:text-white">{{ user.name }}</h2>
-        <p class="text-slate-500 dark:text-gray-400 text-sm">计算机科学与技术学院 · 2021级</p>
+        <p class="text-slate-500 dark:text-gray-400 text-sm">{{ user.college || '未设置学院' }} · {{ user.grade || '未设置年级' }}</p>
         <div class="mt-3 flex space-x-3">
            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
              学号: {{ user.id === 'u1' ? '01220230101' : user.id }}
@@ -118,7 +144,10 @@ const handleSavePassword = () => {
            </span>
         </div>
       </div>
-      <button class="hidden sm:block px-4 py-2 border border-slate-200 dark:border-gray-600 rounded-lg text-sm text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors">
+      <button 
+        @click="openModal('profile')"
+        class="hidden sm:block px-4 py-2 border border-slate-200 dark:border-gray-600 rounded-lg text-sm text-slate-600 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors"
+      >
         编辑资料
       </button>
     </div>
@@ -130,22 +159,60 @@ const handleSavePassword = () => {
       </div>
       
       <div class="divide-y divide-slate-100 dark:divide-gray-700">
+        <!-- System Notifications -->
         <div class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors">
           <div class="flex items-center">
             <div class="p-2 bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400 rounded-lg mr-4">
-              <Bell :size="20" />
+              <Info :size="20" />
             </div>
             <div>
-              <p class="font-medium text-slate-800 dark:text-white">消息通知</p>
-              <p class="text-xs text-slate-500 dark:text-gray-400">接收课程提醒和系统公告</p>
+              <p class="font-medium text-slate-800 dark:text-white">系统通知</p>
+              <p class="text-xs text-slate-500 dark:text-gray-400">接收版本更新和维护公告</p>
             </div>
           </div>
-          <!-- Toggle Button Component -->
           <button 
-            @click="notifications = !notifications"
-            :class="['w-11 h-6 rounded-full transition-colors relative', notifications ? 'bg-green-600' : 'bg-slate-300 dark:bg-gray-600']"
+            @click="notificationStore.togglePreference('system')"
+            :class="['w-11 h-6 rounded-full transition-colors relative', notificationStore.preferences.system ? 'bg-green-600' : 'bg-slate-300 dark:bg-gray-600']"
           >
-            <span :class="['absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform', notifications ? 'translate-x-5' : 'translate-x-0']" />
+            <span :class="['absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform', notificationStore.preferences.system ? 'translate-x-5' : 'translate-x-0']" />
+          </button>
+        </div>
+
+        <!-- Message Notifications -->
+        <div class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors">
+          <div class="flex items-center">
+            <div class="p-2 bg-green-50 dark:bg-gray-700 text-green-600 dark:text-green-400 rounded-lg mr-4">
+              <MessageSquare :size="20" />
+            </div>
+            <div>
+              <p class="font-medium text-slate-800 dark:text-white">消息提醒</p>
+              <p class="text-xs text-slate-500 dark:text-gray-400">接收互动消息和好友动态</p>
+            </div>
+          </div>
+          <button 
+            @click="notificationStore.togglePreference('message')"
+            :class="['w-11 h-6 rounded-full transition-colors relative', notificationStore.preferences.message ? 'bg-green-600' : 'bg-slate-300 dark:bg-gray-600']"
+          >
+            <span :class="['absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform', notificationStore.preferences.message ? 'translate-x-5' : 'translate-x-0']" />
+          </button>
+        </div>
+
+        <!-- Alert Notifications -->
+        <div class="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-gray-700 transition-colors">
+          <div class="flex items-center">
+            <div class="p-2 bg-orange-50 dark:bg-gray-700 text-orange-600 dark:text-orange-400 rounded-lg mr-4">
+              <AlertCircle :size="20" />
+            </div>
+            <div>
+              <p class="font-medium text-slate-800 dark:text-white">重要告警</p>
+              <p class="text-xs text-slate-500 dark:text-gray-400">接收任务截止和安全提醒</p>
+            </div>
+          </div>
+          <button 
+            @click="notificationStore.togglePreference('alert')"
+            :class="['w-11 h-6 rounded-full transition-colors relative', notificationStore.preferences.alert ? 'bg-green-600' : 'bg-slate-300 dark:bg-gray-600']"
+          >
+            <span :class="['absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform', notificationStore.preferences.alert ? 'translate-x-5' : 'translate-x-0']" />
           </button>
         </div>
 
@@ -234,7 +301,7 @@ const handleSavePassword = () => {
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-slate-100 dark:border-gray-700 flex justify-between items-center bg-slate-50/50 dark:bg-gray-800">
           <h3 class="text-lg font-bold text-slate-800 dark:text-white">
-            {{ activeModal === 'email' ? '修改绑定邮箱' : '修改登录密码' }}
+            {{ activeModal === 'email' ? '修改绑定邮箱' : activeModal === 'profile' ? '编辑个人资料' : '修改登录密码' }}
           </h3>
           <button 
             @click="closeModal"
@@ -267,7 +334,56 @@ const handleSavePassword = () => {
             <p class="text-xs text-slate-400 dark:text-gray-500 mt-2">我们将向该邮箱发送验证链接以确认修改。</p>
           </div>
 
-          <div v-else class="space-y-4">
+          <div v-if="activeModal === 'profile'" class="space-y-4">
+             <!-- Avatar Preview (Simplified) -->
+             <div class="flex justify-center mb-4">
+                <div class="relative w-20 h-20">
+                  <img :src="user.avatar" class="w-full h-full rounded-full object-cover ring-4 ring-slate-100 dark:ring-gray-700" />
+                  <button class="absolute bottom-0 right-0 p-1.5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                  </button>
+                </div>
+             </div>
+
+             <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">昵称</label>
+              <input 
+                type="text" 
+                v-model="profileForm.name"
+                class="w-full px-4 py-2 bg-slate-50 dark:bg-gray-700 border border-slate-200 dark:border-gray-600 rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">学院</label>
+              <select 
+                v-model="profileForm.college"
+                class="w-full px-4 py-2 bg-slate-50 dark:bg-gray-700 border border-slate-200 dark:border-gray-600 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              >
+                <option value="计算机科学与技术学院">计算机科学与技术学院</option>
+                <option value="自动化学院">自动化学院</option>
+                <option value="信息工程学院">信息工程学院</option>
+                <option value="理学院">理学院</option>
+                <option value="艺术与设计学院">艺术与设计学院</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">年级</label>
+              <select 
+                v-model="profileForm.grade"
+                class="w-full px-4 py-2 bg-slate-50 dark:bg-gray-700 border border-slate-200 dark:border-gray-600 rounded-lg text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              >
+                <option value="2020级">2020级</option>
+                <option value="2021级">2021级</option>
+                <option value="2022级">2022级</option>
+                <option value="2023级">2023级</option>
+                <option value="2024级">2024级</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="activeModal === 'password'" class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">当前密码</label>
               <div class="relative">
@@ -317,7 +433,7 @@ const handleSavePassword = () => {
             取消
           </button>
           <button 
-            @click="activeModal === 'email' ? handleSaveEmail() : handleSavePassword()"
+            @click="activeModal === 'email' ? handleSaveEmail() : activeModal === 'profile' ? handleSaveProfile() : handleSavePassword()"
             :disabled="isLoading"
             class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm disabled:opacity-70 flex items-center"
           >

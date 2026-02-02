@@ -1,20 +1,27 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { User } from '../types/index.ts';
-import router from '../router/index.ts';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
 
   const login = (userData: User) => {
-    user.value = userData;
-    router.push('/');
+    user.value = {
+      college: '计算机科学与技术学院',
+      grade: '2021级',
+      ...userData
+    };
   };
 
   const logout = () => {
     user.value = null;
-    router.push('/login');
   };
 
-  return { user, login, logout };
+  const updateUser = (updates: Partial<User>) => {
+    if (user.value) {
+      user.value = { ...user.value, ...updates };
+    }
+  };
+
+  return { user, login, logout, updateUser };
 });

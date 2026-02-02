@@ -3,6 +3,8 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from './stores/auth.store.ts';
 import Sidebar from './components/layout/Sidebar.vue';
+import ToastManager from './components/common/ToastManager.vue';
+import NotificationCenter from './components/common/NotificationCenter.vue';
 
 const authStore = useAuthStore();
 const route = useRoute();
@@ -16,6 +18,7 @@ const user = computed(() => authStore.user);
   <div :class="['min-h-screen font-sans transition-colors duration-300 ease-in-out bg-slate-50 dark:bg-gray-950 text-slate-900 dark:text-gray-100']">
     
     <!-- Auth Layout -->
+    <ToastManager />
     <div v-if="isLoginPage" class="h-screen w-full">
       <router-view v-slot="{ Component }">
         <transition name="fade" mode="out-in">
@@ -35,6 +38,7 @@ const user = computed(() => authStore.user);
           </h2>
           
           <div class="flex items-center space-x-4">
+              <NotificationCenter />
               <div class="flex items-center space-x-2 pl-2 border-l border-slate-100 dark:border-gray-700 transition-colors duration-300">
                 <div class="w-8 h-8 rounded-full bg-slate-200 dark:bg-gray-600 overflow-hidden ring-2 ring-white dark:ring-gray-700">
                   <img :src="user?.avatar" alt="User" class="w-full h-full object-cover" />

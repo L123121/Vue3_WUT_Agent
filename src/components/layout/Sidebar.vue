@@ -19,6 +19,7 @@ const menuItems = [
 
 const handleLogout = () => {
   authStore.logout();
+  router.push('/login');
 };
 
 const isActive = (path: string) => {
@@ -36,7 +37,7 @@ const navigateTo = (path: string) => {
     <div class="p-6 pt-8 flex flex-col items-start justify-center">
       <div class="flex items-center gap-3 mb-2 px-2">
         <div class="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center shrink-0">
-          <img :src="wutLogo" alt="WUT Logo" class="w-full h-full object-cover drop-shadow-md" />
+          <img :src="wutLogo" alt="WUT Logo" class="w-full h-full object-cover scale-125 drop-shadow-md" />
         </div>
         <div>
           <h1 class="text-xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight">武理小精灵</h1>

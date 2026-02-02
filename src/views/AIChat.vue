@@ -1,21 +1,91 @@
 <script setup lang="ts">
 // Vue 3 Composition API
 import { ref, watch, nextTick, onMounted } from 'vue';
-
-// 使用 lucide-vue-next 图标库
-import { Send, Bot, User, Eraser, Sparkles, Loader2 } from 'lucide-vue-next';
-
-// 修改导入路径，移除 .ts 扩展名
 import { useChatStore } from '../stores/chat.store';
+import { useToastStore } from '../stores/toast.store';
+import { Send, Bot, User, Eraser, Sparkles, Loader2, Copy, Check } from 'lucide-vue-next';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-dark.css'; // 引入代码高亮样式
 
-// 安装 marked 或使用其他方案
-// import { marked } from 'marked';
-// 暂时不使用 marked，用纯文本或简单HTML
+// 配置 marked 自定义渲染器
+const renderer = new marked.Renderer();
+
+renderer.code = (code, language) => {
+  const validLang = hljs.getLanguage(language || '') ? language : 'plaintext';
+  const highlighted = hljs.highlight(code, { language: validLang || 'plaintext' }).value;
+  // 对代码进行 URL 编码，以便安全地放入 data 属性中
+  const encodedCode = encodeURIComponent(code);
+  
+  return `
+    <div class="code-block-wrapper my-3 rounded-lg overflow-hidden bg-[#282c34] text-white shadow-md border border-slate-700">
+      <div class="flex items-center justify-between px-3 py-1.5 bg-[#21252b] text-xs text-gray-400 select-none border-b border-slate-700">
+        <span class="font-mono font-medium opacity-80">${validLang || 'text'}</span>
+        <button 
+          class="copy-btn flex items-center gap-1.5 hover:text-white transition-all duration-200 cursor-pointer px-2 py-0.5 rounded hover:bg-white/10"
+          data-code="${encodedCode}"
+        >
+          <span class="copy-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+          </span>
+          <span class="copy-text">复制</span>
+        </button>
+      </div>
+      <pre class="!m-0 !p-4 overflow-x-auto bg-[#282c34] font-mono text-sm leading-normal"><code class="hljs language-${validLang}">${highlighted}</code></pre>
+    </div>
+  `;
+};
+
+marked.use({ renderer });
 
 // 状态变量
 const chatStore = useChatStore();
+const toast = useToastStore();
 const input = ref('');
 const messagesEndRef = ref<HTMLElement | null>(null);
+
+// 处理全局点击事件（用于代码复制）
+const handleGlobalClick = (event: MouseEvent) => {
+  const target = (event.target as HTMLElement).closest('.copy-btn');
+  if (target) {
+    const btn = target as HTMLElement;
+    const code = decodeURIComponent(btn.getAttribute('data-code') || '');
+    if (code) {
+      navigator.clipboard.writeText(code).then(() => {
+        // 全局通知
+        toast.success('代码已复制到剪贴板');
+        
+        // 按钮反馈
+        const iconSpan = btn.querySelector('.copy-icon');
+        const textSpan = btn.querySelector('.copy-text');
+        
+        if (iconSpan && textSpan) {
+          const originalIcon = iconSpan.innerHTML;
+          const originalText = textSpan.innerHTML;
+          
+          iconSpan.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          textSpan.innerHTML = '<span class="text-green-400">已复制</span>';
+          textSpan.classList.add('text-green-400');
+          
+          setTimeout(() => {
+            iconSpan.innerHTML = originalIcon;
+            textSpan.innerHTML = originalText;
+            textSpan.classList.remove('text-green-400');
+          }, 2000);
+        }
+      });
+    }
+  }
+};
+
+// 监听最后一条消息内容的变化，实现跟随滚动
+watch(
+  () => chatStore.messages[chatStore.messages.length - 1]?.text,
+  () => {
+    scrollToBottom();
+  },
+  { deep: true }
+);
 
 // 方法
 const handleSend = async () => {
@@ -36,8 +106,12 @@ const scrollToBottom = async () => {
 };
 
 const parseMarkdown = (text: string) => {
-  // 简单的文本处理，暂时不使用 marked
-  return text;
+  try {
+    return marked.parse(text, { async: false }) as string;
+  } catch (e) {
+    console.error('Markdown parsing error:', e);
+    return text;
+  }
 };
 
 const formatTime = (timestamp: number | string | Date) => {
@@ -120,20 +194,31 @@ onMounted(() => {
 
           <!-- Bubble -->
           <div :class="[
-            'px-5 py-3.5 shadow-sm text-sm leading-relaxed relative',
+            'px-5 py-3.5 shadow-sm text-sm leading-relaxed relative max-w-full overflow-hidden',
             msg.role === 'user' 
               ? 'bg-blue-600 text-white rounded-2xl rounded-tr-sm' 
               : msg.isError 
                 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800/50 rounded-2xl rounded-tl-sm'
                 : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 border border-slate-100 dark:border-gray-700 rounded-2xl rounded-tl-sm'
           ]">
-            <div v-if="msg.role === 'model' && !msg.isError" 
-                 class="prose prose-sm max-w-none prose-p:my-1 prose-headings:text-slate-800 dark:prose-headings:text-white prose-strong:text-slate-800 dark:prose-strong:text-white prose-code:text-pink-600 dark:prose-code:text-pink-400 dark:text-gray-200 prose-pre:bg-slate-100 dark:prose-pre:bg-gray-900 prose-pre:rounded-lg"
-                 v-html="parseMarkdown(msg.text)"
+            <div 
+              v-if="msg.role === 'model' && !msg.isError"
+              class="prose prose-sm dark:prose-invert max-w-none break-words leading-relaxed
+                prose-p:my-1.5 prose-p:leading-relaxed
+                prose-headings:font-bold prose-headings:my-2 prose-h1:text-lg prose-h2:text-base prose-h3:text-sm
+                prose-ul:my-1 prose-ul:list-disc prose-ul:pl-4
+                prose-ol:my-1 prose-ol:list-decimal prose-ol:pl-4
+                prose-li:my-0.5
+                prose-pre:my-2 prose-pre:p-0 prose-pre:bg-transparent prose-pre:rounded-lg
+                prose-code:px-1 prose-code:py-0.5 prose-code:bg-slate-100 dark:prose-code:bg-gray-700 prose-code:rounded prose-code:text-pink-500 dark:prose-code:text-pink-400 prose-code:font-mono prose-code:text-xs prose-code:before:content-[''] prose-code:after:content-['']
+                prose-strong:font-bold prose-strong:text-slate-900 dark:prose-strong:text-white
+                prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline
+                prose-table:my-2 prose-table:w-full prose-table:text-left prose-table:border-collapse
+                prose-th:p-2 prose-th:border prose-th:border-slate-200 dark:prose-th:border-gray-700 prose-th:bg-slate-50 dark:prose-th:bg-gray-800
+                prose-td:p-2 prose-td:border prose-td:border-slate-200 dark:prose-td:border-gray-700"
+              v-html="parseMarkdown(msg.text)"
             ></div>
-            <div v-else>
-              {{ msg.text }}
-            </div>
+            <div v-else class="whitespace-pre-wrap leading-relaxed">{{ msg.text }}</div>
             <div :class="['text-[9px] mt-1.5 opacity-60 text-right', msg.role === 'user' ? 'text-blue-100' : 'text-slate-400 dark:text-gray-500']">
               {{ formatTime(msg.timestamp) }}
             </div>
