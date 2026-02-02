@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useAuthStore } from '../../stores/auth.store.ts';
 import { useRouter, useRoute } from 'vue-router';
-import { LayoutDashboard, ListTodo, Info, Bot, Settings, LogOut, GraduationCap } from 'lucide-vue-next';
+import { LayoutDashboard, ListTodo, Info, Bot, Settings, LogOut } from 'lucide-vue-next';
+import wutLogoImg from '../../assets/wuhan-university-logo.png';
+
+const wutLogo = wutLogoImg;
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -32,8 +35,8 @@ const navigateTo = (path: string) => {
     <!-- Logo Area -->
     <div class="p-6 pt-8 flex flex-col items-start justify-center">
       <div class="flex items-center gap-3 mb-2 px-2">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-900/20 ring-2 ring-white dark:ring-gray-800 shrink-0">
-          <GraduationCap :size="24" class="text-yellow-400" :strokeWidth="1.5" />
+        <div class="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center shrink-0">
+          <img :src="wutLogo" alt="WUT Logo" class="w-full h-full object-cover drop-shadow-md" />
         </div>
         <div>
           <h1 class="text-xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-tight">武理小精灵</h1>

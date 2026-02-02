@@ -15,7 +15,7 @@ import { useChatStore } from '../stores/chat.store';
 // 状态变量
 const chatStore = useChatStore();
 const input = ref('');
-const messagesEndRef = ref(null);
+const messagesEndRef = ref<HTMLElement | null>(null);
 
 // 方法
 const handleSend = async () => {
@@ -35,12 +35,12 @@ const scrollToBottom = async () => {
   }
 };
 
-const parseMarkdown = (text) => {
+const parseMarkdown = (text: string) => {
   // 简单的文本处理，暂时不使用 marked
   return text;
 };
 
-const formatTime = (timestamp) => {
+const formatTime = (timestamp: number | string | Date) => {
   const date = new Date(timestamp);
   return date.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
