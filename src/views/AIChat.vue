@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Vue 3 Composition API
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useChatStore } from '../stores/chat.store';
 import { useToastStore } from '../stores/toast.store';
 import { Send, Bot, User, Eraser, Sparkles, Loader2, Copy, Check } from 'lucide-vue-next';
@@ -78,14 +78,7 @@ const handleGlobalClick = (event: MouseEvent) => {
   }
 };
 
-// 监听最后一条消息内容的变化，实现跟随滚动
-watch(
-  () => chatStore.messages[chatStore.messages.length - 1]?.text,
-  () => {
-    scrollToBottom();
-  },
-  { deep: true }
-);
+// （已移除）重复的监听，使用基于 messages.length 的 watch 来滚动
 
 // 方法
 const handleSend = async () => {
@@ -130,9 +123,14 @@ watch(
   }
 );
 
-// 组件挂载后滚动到底部
+// 组件挂载后滚动到底部并绑定全局点击处理（用于复制）
 onMounted(() => {
   scrollToBottom();
+  window.addEventListener('click', handleGlobalClick);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('click', handleGlobalClick);
 });
 </script>
 
@@ -199,7 +197,8 @@ onMounted(() => {
               ? 'bg-blue-600 text-white rounded-2xl rounded-tr-sm' 
               : msg.isError 
                 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800/50 rounded-2xl rounded-tl-sm'
-                : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 border border-slate-100 dark:border-gray-700 rounded-2xl rounded-tl-sm'
+                : 'bg-white dark:bg-gray-800 text-slate-700 dark:text-gray-200 border border-slate-100 dark:border-gray-700 rounded-2xl rounded-tl-sm',
+            (msg.role === 'model' && !msg.isError) ? 'pr-16' : ''
           ]">
             <div 
               v-if="msg.role === 'model' && !msg.isError"
@@ -218,6 +217,17 @@ onMounted(() => {
                 prose-td:p-2 prose-td:border prose-td:border-slate-200 dark:prose-td:border-gray-700"
               v-html="parseMarkdown(msg.text)"
             ></div>
+            <button
+              v-if="msg.role === 'model' && !msg.isError"
+              class="copy-btn absolute top-2 right-3 flex items-center gap-1.5 hover:text-white transition-all duration-200 cursor-pointer px-2 py-0.5 rounded hover:bg-white/10 text-xs text-slate-400"
+              :data-code="encodeURIComponent(msg.text)"
+              title="复制回复"
+            >
+              <span class="copy-icon">
+                <Copy :size="12" />
+              </span>
+              <span class="copy-text">复制</span>
+            </button>
             <div v-else class="whitespace-pre-wrap leading-relaxed">{{ msg.text }}</div>
             <div :class="['text-[9px] mt-1.5 opacity-60 text-right', msg.role === 'user' ? 'text-blue-100' : 'text-slate-400 dark:text-gray-500']">
               {{ formatTime(msg.timestamp) }}
