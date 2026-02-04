@@ -4,14 +4,14 @@ import { ChatMessage } from '../types/index.ts';
 import { sendMessageToBackend } from '../api/chat.ts';
 
 export const useChatStore = defineStore('chat', () => {
-  const messages = ref<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'model',
-      text: '你好！我是武理小精灵 AI 助手 (Powered by Qwen)。有什么我可以帮你的吗？',
-      timestamp: new Date(),
-    }
-  ]);
+  const welcomeMsg: ChatMessage = {
+    id: 'welcome',
+    role: 'model',
+    text: '你好！我是武理小精灵 AI 助手 (Powered by Qwen)。有什么我可以帮你的吗？',
+    timestamp: new Date(),
+  };
+
+  const messages = ref<ChatMessage[]>([welcomeMsg]);
   
   const isLoading = ref(false);
 
@@ -46,6 +46,7 @@ export const useChatStore = defineStore('chat', () => {
         timestamp: new Date(),
       };
       messages.value.push(aiMsg);
+      const aiMsgRef = messages.value[messages.value.length - 1];
 
       // 分段显示文本
       const chunkSize = 5; // 每次显示的字符数
@@ -54,10 +55,10 @@ export const useChatStore = defineStore('chat', () => {
       return new Promise<void>((resolve) => {
         const typeWriter = setInterval(() => {
           if (currentIndex < responseText.length) {
-            aiMsg.text += responseText.slice(currentIndex, currentIndex + chunkSize);
+            aiMsgRef.text += responseText.slice(currentIndex, currentIndex + chunkSize);
             currentIndex += chunkSize;
           } else {
-            aiMsg.text = responseText; // 确保最终文本完整
+            aiMsgRef.text = responseText; // 确保最终文本完整
             clearInterval(typeWriter);
             resolve();
           }
@@ -78,7 +79,7 @@ export const useChatStore = defineStore('chat', () => {
   };
 
   const clearMessages = () => {
-    messages.value = [];
+    messages.value = [welcomeMsg];
   };
 
   return { messages, isLoading, sendMessage, clearMessages };
