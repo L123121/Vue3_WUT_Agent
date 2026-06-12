@@ -1,9 +1,10 @@
 <script setup>
 import { ref, watch, nextTick, computed } from 'vue';
-import { Send, Sparkles, Wifi, WifiOff, BookOpen, Command, Search, Trash2, Download } from 'lucide-vue-next';
+import { Send, Sparkles, Wifi, WifiOff, BookOpen, Command, Search, Trash2, Download, Paperclip, X, FileText } from 'lucide-vue-next';
 import { useLanguageStore } from '../../stores/language.store.js';
 import { useChatStore } from '../../stores/chat.store.js';
 import { useToastStore } from '../../stores/toast.store.js';
+import { uploadChatFile } from '../../api/chat.js';
 import VoiceRecorder from './VoiceRecorder.vue';
 
 const props = defineProps({
@@ -20,8 +21,32 @@ const chatStore = useChatStore();
 const toast = useToastStore();
 const input = ref('');
 const textareaRef = ref(null);
+const fileInputRef = ref(null);
 const debouncedInput = ref('');
 const enableRag = ref(false);
+
+// 文件上传
+const selectedFile = ref(null);
+const filePreviewUrl = ref('');
+
+const handleFileSelect = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  selectedFile.value = file;
+  if (file.type.startsWith('image/')) {
+    const reader = new FileReader();
+    reader.onload = (e) => { filePreviewUrl.value = e.target.result; };
+    reader.readAsDataURL(file);
+  } else {
+    filePreviewUrl.value = '';
+  }
+};
+
+const removeFile = () => {
+  selectedFile.value = null;
+  filePreviewUrl.value = '';
+  if (fileInputRef.value) fileInputRef.value.value = '';
+};
 const showCommands = ref(false);
 const selectedCommandIndex = ref(0);
 let debounceTimer = null;
@@ -56,7 +81,7 @@ watch(input, (val) => {
 });
 
 const handleSend = async () => {
-  if (!input.value.trim() || props.isLoading) return;
+  if ((!input.value.trim() && !selectedFile.value) || props.isLoading) return;
 
   // 如果是命令，执行命令
   if (input.value.startsWith('/')) {
@@ -69,10 +94,26 @@ const handleSend = async () => {
     }
   }
 
+  // 先上传文件（如果有）
+  let fileData = null;
+  if (selectedFile.value) {
+    try {
+      const res = await uploadChatFile(selectedFile.value);
+      if (res.success) fileData = res.data;
+      else { toast.error('文件上传失败'); return; }
+    } catch (e) {
+      toast.error(e.message || '文件上传失败');
+      return;
+    }
+  }
+
   const message = input.value.trim();
   input.value = '';
+  selectedFile.value = null;
+  filePreviewUrl.value = '';
+  if (fileInputRef.value) fileInputRef.value.value = '';
   showCommands.value = false;
-  emit('send', message, enableRag.value);
+  emit('send', message, enableRag.value, fileData);
   await nextTick();
   textareaRef.value?.focus();
 };
@@ -163,6 +204,17 @@ defineExpose({
       </div>
     </Transition>
 
+    <!-- 文件预览 -->
+    <div v-if="selectedFile" class="flex items-center gap-2 px-3 py-2 mb-1 bg-slate-50 dark:bg-gray-800 rounded-lg border border-slate-200 dark:border-gray-700">
+      <img v-if="filePreviewUrl && selectedFile.type.startsWith('image/')"
+        :src="filePreviewUrl" class="h-10 w-10 rounded object-cover border border-slate-200 dark:border-gray-600" />
+      <FileText v-else :size="18" class="text-slate-400 shrink-0" />
+      <span class="text-xs text-slate-600 dark:text-gray-300 truncate flex-1">{{ selectedFile.name }}</span>
+      <button @click="removeFile" class="shrink-0 p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+        <X :size="14" />
+      </button>
+    </div>
+
     <div class="relative flex items-center gap-1.5 bg-slate-100 dark:bg-gray-800 rounded-xl p-1.5 border border-transparent focus-within:border-blue-300 dark:focus-within:border-blue-700 focus-within:bg-white dark:focus-within:bg-gray-800 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/20 transition-all duration-300">
       <!-- 快捷命令菜单 -->
       <Transition name="command-menu">
@@ -226,11 +278,22 @@ defineExpose({
         style="min-height: 32px;"
       ></textarea>
 
+      <!-- 文件选取 -->
+      <input ref="fileInputRef" type="file" accept="image/*,.pdf,.docx,.doc,.txt,.md" class="hidden" @change="handleFileSelect" />
+      <button
+        @click="fileInputRef?.click()"
+        :disabled="isLoading || !isConnected"
+        class="shrink-0 h-8 w-8 rounded-lg inline-flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 transition-colors"
+        title="上传文件"
+      >
+        <Paperclip :size="16" />
+      </button>
+
       <VoiceRecorder :disabled="isLoading || !isConnected" @transcript="handleTranscript" @error="(message) => emit('error', message)" />
 
       <button
         @click="handleSend"
-        :disabled="!input.trim() || isLoading || !isConnected"
+        :disabled="(!input.trim() && !selectedFile) || isLoading || !isConnected"
         :class="[
           'p-2 rounded-lg transition-all duration-300 shrink-0',
           !input.trim() || isLoading || !isConnected ? 'bg-slate-200 text-slate-400 dark:bg-gray-700 dark:text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20 active:scale-95'

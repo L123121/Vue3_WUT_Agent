@@ -1,30 +1,54 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { sha256, DEFAULT_PASSWORD_HASH } from '../utils/crypto.js';
 
 const TOKEN_KEY = 'token';
 const USER_KEY = 'user';
-const PASSWORD_KEY = 'app_login_password';
+const PASSWORD_HASH_KEY = 'app_login_password_hash';
 const IS_LOCAL_AUTH_KEY = 'is_local_auth';
 
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref(JSON.parse(localStorage.getItem(USER_KEY) || 'null'));
-  const token = ref(localStorage.getItem(TOKEN_KEY) || '');
-  const password = ref(localStorage.getItem(PASSWORD_KEY) || '123456');
+/**
+ * 确保应用始终有本地身份（免登录，打开即用）
+ * 如果 localStorage 没有用户数据，自动创建一个本地用户
+ */
+function ensureLocalIdentity() {
+  if (!localStorage.getItem(TOKEN_KEY)) {
+    const localToken = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(TOKEN_KEY, localToken);
+    localStorage.setItem(IS_LOCAL_AUTH_KEY, 'true');
+  }
+  if (!localStorage.getItem(USER_KEY)) {
+    localStorage.setItem(USER_KEY, JSON.stringify({
+      id: `u_${Date.now()}`,
+      name: '武理学子',
+      college: '计算机科学与技术学院',
+      grade: '2021级',
+    }));
+  }
+}
+ensureLocalIdentity();
 
-  // 判断是否是本地认证：检查 token 是否以 'local_' 开头
-  const storedToken = localStorage.getItem(TOKEN_KEY) || '';
+export const useAuthStore = defineStore('auth', () => {
+  const user = ref(JSON.parse(localStorage.getItem(USER_KEY)));
+  const token = ref(localStorage.getItem(TOKEN_KEY));
+
+  // Migrate from plaintext to hash (one-time)
+  const legacyPassword = localStorage.getItem('app_login_password');
+  if (legacyPassword) {
+    sha256(legacyPassword).then((hash) => {
+      localStorage.setItem(PASSWORD_HASH_KEY, hash);
+      localStorage.removeItem('app_login_password');
+    });
+  }
+
+  const storedHash = localStorage.getItem(PASSWORD_HASH_KEY) || DEFAULT_PASSWORD_HASH;
+
   const storedIsLocalAuth = localStorage.getItem(IS_LOCAL_AUTH_KEY);
-  // 优先使用存储的标志，如果没有则根据 token 前缀判断
   const isLocalAuth = ref(
-    storedIsLocalAuth !== null
-      ? storedIsLocalAuth === 'true'
-      : storedToken.startsWith('local_')
+    storedIsLocalAuth !== null ? storedIsLocalAuth === 'true' : token.value.startsWith('local_')
   );
 
-  console.log('[AuthStore] Init - token:', storedToken ? `${storedToken.substring(0, 20)}...` : 'empty');
-  console.log('[AuthStore] Init - isLocalAuth:', isLocalAuth.value);
-
-  const isAuthenticated = computed(() => !!token.value && !!user.value);
+  const isAuthenticated = computed(() => true); // 免登录，始终为 true
 
   const login = (userData, authToken) => {
     user.value = {
@@ -33,14 +57,12 @@ export const useAuthStore = defineStore('auth', () => {
       ...userData,
     };
 
-    // 如果有 token 则保存，否则生成本地 token
     if (authToken) {
       token.value = authToken;
       isLocalAuth.value = false;
       localStorage.setItem(TOKEN_KEY, authToken);
       localStorage.setItem(IS_LOCAL_AUTH_KEY, 'false');
     } else {
-      // 本地验证时生成本地 token
       const localToken = `local_${Date.now()}_${Math.random().toString(36).slice(2)}`;
       token.value = localToken;
       isLocalAuth.value = true;
@@ -67,19 +89,23 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  const verifyPassword = (value) => value === password.value;
+  const verifyPassword = async (value) => {
+    const hash = await sha256(value);
+    return hash === storedHash;
+  };
 
-  const changePassword = (currentPassword, newPassword) => {
-    if (!verifyPassword(currentPassword)) {
-      return { success: false, message: '旧密码错误 (提示: 默认密码是 123456)' };
+  const changePassword = async (currentPassword, newPassword) => {
+    const isValid = await verifyPassword(currentPassword);
+    if (!isValid) {
+      return { success: false, message: '旧密码错误' };
     }
 
     if (!newPassword || newPassword.length < 6) {
       return { success: false, message: '新密码长度至少需要6位' };
     }
 
-    password.value = newPassword;
-    localStorage.setItem(PASSWORD_KEY, newPassword);
+    const newHash = await sha256(newPassword);
+    localStorage.setItem(PASSWORD_HASH_KEY, newHash);
     return { success: true, message: '密码修改成功！' };
   };
 
@@ -92,6 +118,6 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     updateUser,
     verifyPassword,
-    changePassword
+    changePassword,
   };
 });

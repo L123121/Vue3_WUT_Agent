@@ -1,82 +1,66 @@
-# WUT RAG Copilot / 武理 RAG 助手
+# WUT RAG Copilot / 武理小精灵
 
-![状态](https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E6%B4%BB%E8%B7%83-success) ![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.0.0-blue) ![许可证](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF%E8%AF%81-MIT-green) ![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen) ![Node](https://img.shields.io/badge/Node-18+-yellow)
+![状态](https://img.shields.io/badge/%E7%8A%B6%E6%80%81-%E6%B4%BB%E8%B7%83-success) ![版本](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-2.0.0-blue) ![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen) ![Node](https://img.shields.io/badge/Node-18+-yellow)
 
-基于 RAG 知识库增强的武理校园 AI 助手，支持文档向量化检索、多会话管理、流式输出、GitHub Skills 导入，使用讯飞星火大模型提供智能对话能力。
+基于 RAG 知识库增强的武理校园 AI 助手。支持文件上传对话、Markdown 渲染、多会话管理、流式输出、语音输入、深色模式，使用讯飞星火 / 通义千问大模型。
 
-A RAG-enhanced AI copilot for WUT campus, featuring document vectorized retrieval, multi-conversation management, streaming output, GitHub Skills import, and powered by iFlyTek Spark LLM.
-
-## 目录 / Table of Contents
-- [功能特性 / Features](#功能特性--features)
-- [演示 / Demo & Screenshots](#演示--screenshots)
-- [快速开始 / Quick Start](#快速开始--quick-start)
-- [安装 / Installation](#安装--installation)
-- [使用方法 / Usage](#使用方法--usage)
-- [API 文档 / API Documentation](#api-文档--api-documentation)
-- [配置 / Configuration](#配置--configuration)
-- [项目结构 / Project Structure](#项目结构--project-structure)
-- [技术栈 / Tech Stack](#技术栈--tech-stack)
-- [贡献 / Contributing](#贡献--contributing)
-- [许可证 / License](#许可证--license)
+A RAG-enhanced AI copilot for WUT campus — file chat, Markdown rendering, multi-conversation, streaming output, voice input, dark mode, powered by iFlyTek Spark / Qwen LLM.
 
 ---
 
-## ✨ 功能特性 / Features
+## ✨ 功能特性
 
 ### 核心功能
-- **AI 智能对话**：基于 Vue 3 + Composition API 的即时聊天界面
-- **流式输出**：SSE (Server-Sent Events) 流式渲染，打字机效果实时显示 AI 回复
-- **多会话管理**：支持创建、切换、重命名、删除会话，会话数据持久化到 Redis
-- **RAG 知识库**：集成 Chroma 向量数据库，支持文档上传、向量化检索，增强 AI 回答质量
-- **GitHub Skills 导入**：支持从 GitHub 导入 SKILL.md 文件，自定义 AI 回答风格
-- **提示词管理**：支持添加、编辑、删除、复制自定义提示词，选中后作为系统提示生效
-- **代码运行**：内置代码运行器，支持多种编程语言的在线执行
-- **MCP 协议支持**：支持 Model Context Protocol，扩展 AI 能力
+- **AI 智能对话** — Vue 3 + Composition API 即时聊天界面
+- **流式输出 (SSE)** — 打字机效果实时显示 AI 回复
+- **文件上传对话** — 支持上传图片、PDF、Word、TXT 文件，AI 自动读取内容（📎 按钮）
+- **多会话管理** — 创建、切换、重命名、删除会话，本地持久化
+- **RAG 知识库** — 文档上传 → 向量化 → 检索增强回答
+- **GitHub Skills 导入** — 导入 SKILL.md 定制 AI 回答风格
+- **提示词管理** — 自定义系统提示词，按分类筛选
+- **Markdown 渲染** — 标题、粗体、代码块（highlight.js + 动态语言加载）、表格等
+- **语音输入** — 浏览器语音识别（中文）
 
 ### 用户体验
-- **代码高亮与复制**：支持 Markdown 渲染、代码高亮（highlight.js）与一键复制
-- **深色模式**：支持日间/夜间主题切换，状态持久化
-- **本地持久化**：聊天记录、会话、主题设置自动保存到 localStorage / Redis
-- **语音输入**：支持浏览器语音识别（中文）
-- **性能监控面板**：实时展示系统性能指标
+- **深色模式** — 日间/夜间主题切换，状态持久化
+- **代码高亮与复制** — 一键复制代码块
+- **消息重试** — 失败的消息可重新发送
+- **对话导出** — 导出为 Markdown 文件
+- **本地持久化** — 聊天记录自动保存到 localStorage，刷新不丢失
+- **跨标签页保持** — 切换路由/标签页聊天记录不丢失
 
 ### 技术特点
-- **前后端分离**：前端通过 `/api` 调用后端 Express 服务
-- **模拟与真实模式**：未配置 API Key 时自动切换到模拟模式，便于本地开发
-- **SSE 流式接口**：支持 Server-Sent Events 实时推送 AI 回复
-- **Token 用量追踪**：后端记录请求次数、Token 消耗、预估成本
-- **Redis 会话存储**：支持会话数据持久化和跨设备同步
-- **向量检索增强**：RAG 技术提升 AI 回答的准确性和相关性
+- **前后端分离** — 前端通过 `/api` 调用后端 Express 服务
+- **模拟模式** — 未配置 API Key 时自动使用模拟响应，本地开发零配置
+- **In-Memory 存储** — 无需 Redis，数据持久化到 JSON 文件
+- **Web Worker** — 大篇幅 Markdown 渲染在 Worker 线程中执行，不阻塞 UI
+- **连接状态管理** — 心跳检测 + 断线自动重连 + 待发送队列
 
 ---
 
-## 🖼️ 演示 / Screenshots
+## 🖼️ 演示
 
-![主界面截图](image.png)
-
+![主界面](image.png)
 ![会话页面](会话页面.png)
-
 ![知识库](知识库.png)
 
 ---
 
-## 🚀 快速开始 / Quick Start
+## 🚀 快速开始
 
-### 前提条件 / Prerequisites
+### 前提条件
 
 - Node.js >= 18
-- npm 或 pnpm
-- Redis (可选，用于会话持久化)
-- Chroma (可选，用于 RAG 知识库)
+- npm
 
-### 启动前端（在项目根目录）
+### 启动前端（项目根目录）
 
 ```bash
 npm install
 npm run dev
 ```
 
-### 启动后端（在 `backend/` 目录）
+### 启动后端（`backend/` 目录）
 
 ```bash
 cd backend
@@ -84,284 +68,221 @@ npm install
 npm run dev
 ```
 
-前端默认运行在 `http://localhost:5173`，后端默认运行在 `http://localhost:3000`。
+前端 → `http://localhost:5173`，后端 → `http://localhost:3000`。
 
 ---
 
-## 📦 安装 / Installation
-
-1. 克隆仓库
+## 📦 安装
 
 ```bash
 git clone https://github.com/L123121/Vue3_WUT_LLM.git
 cd Vue3_WUT_LLM
-```
 
-2. 安装前端依赖并运行
-
-```bash
+# 前端
 npm install
 npm run dev
-```
 
-3. 安装并运行后端
-
-```bash
+# 后端
 cd backend
 npm install
 npm run dev
-```
 
-4. 配置环境变量（可选）
-
-```bash
+# 环境变量（可选）
 cp backend/.env.example backend/.env
-# 编辑 backend/.env, 填入讯飞相关配置
+# 编辑 backend/.env, 填入 API Key
 ```
 
 ---
 
-## 📖 使用方法 / Usage
+## 📖 使用方法
 
 ### 登录
-- 访问 `http://localhost:5173/login`
-- 输入任意账号，密码为 `123456` 即可登录
+访问 `http://localhost:5173/login`，任意账号 + 密码 `123456`。
 
 ### AI 聊天
-- 登录后自动进入聊天页面
-- 在输入框输入问题，按 Enter 或点击发送
-- AI 会以流式方式实时返回回复
+输入框输入问题，Enter 发送。AI 流式返回回复。
+
+### 文件上传
+点击输入框左侧 📎 按钮，选择文件（支持图片/PDF/Word/TXT），AI 自动读取文件内容并回答。
 
 ### 会话管理
-- 左侧边栏显示所有会话列表
-- 点击 `+` 创建新会话
-- 点击会话标题可重命名
-- 点击删除图标可删除会话
+左侧边栏：`+` 创建新会话、点击标题重命名、删除图标删除。
 
 ### RAG 知识库
-- 上传文档（PDF、Word、TXT）到知识库
-- 系统自动进行向量化处理
-- 聊天时启用 RAG 增强，AI 将基于知识库内容回答
+上传文档到知识库 → 聊天时点 `知识库` 按钮启用，AI 基于知识库内容回答。
 
 ### Skills 功能
-- 点击聊天界面右上角的 `Skills` 按钮
-- 粘贴 GitHub SKILL.md 文件的链接（如 `https://github.com/xxx/blob/main/SKILL.md`）
-- 点击导入，Skills 会作为系统提示增强 AI 回答风格
+聊天界面右上角 `Skills` → 粘贴 GitHub SKILL.md 链接 → 导入生效。
 
 ### 提示词功能
-- 点击聊天界面右上角的 `提示词` 按钮
-- 点击"新建"添加自定义提示词
-- 点击提示词卡片选中/取消应用
-- 支持编辑、复制、删除提示词
-- 支持按分类筛选提示词
+右上角 `提示词` → 新建/编辑/删除提示词，选中后作为系统提示生效。
 
 ---
 
-## 📚 API 文档 / API Documentation
+## 📚 API 文档
 
-### 后端接口列表
+### 接口列表
 
 | 方法 | 路径 | 描述 |
 |------|------|------|
 | GET | `/api/health` | 健康检查 |
 | GET | `/api` | API 列表 |
-| GET | `/api/usage` | 用量统计（支持 `?hours=24` 参数） |
-| POST | `/api` | 聊天接口（主接口） |
+| POST | `/api` | 聊天接口 |
 | POST | `/api/chat` | 聊天接口（兼容） |
-| POST | `/api/stream` | SSE 流式聊天接口（支持 RAG 增强） |
+| POST | `/api/stream` | SSE 流式聊天（支持 RAG + 文件） |
+| POST | `/api/chat/upload` | 聊天文件上传 |
+| POST | `/api/chat/title` | 生成会话标题 |
 | GET | `/api/conversations` | 获取会话列表 |
 | POST | `/api/conversations` | 创建会话 |
-| GET | `/api/conversations/:id` | 获取会话详情 |
+| GET | `/api/conversations/:id` | 会话详情 |
 | PUT | `/api/conversations/:id` | 更新会话 |
 | DELETE | `/api/conversations/:id` | 删除会话 |
-| POST | `/api/rag/upload` | 上传文档到知识库 |
+| POST | `/api/rag/upload` | 上传知识库文档 |
 | POST | `/api/rag/search` | 知识库检索 |
 | POST | `/api/auth/login` | 用户登录 |
 
-### 聊天接口详情
+### POST `/api/stream` — 流式聊天
 
-#### POST `/api` - 普通聊天
-
-**请求体：**
-```json
-{
-  "message": "你好",
-  "history": [
-    { "role": "user", "content": "之前的问题" },
-    { "role": "assistant", "content": "之前的回答" }
-  ]
-}
-```
-
-**响应：**
-```json
-{
-  "success": true,
-  "data": {
-    "reply": "你好！有什么可以帮助你的吗？",
-    "timestamp": "2024-01-01T12:00:00.000Z",
-    "messageId": "msg_1704110400000",
-    "model": "spark-v3.5",
-    "isMock": false,
-    "via": "/api"
-  }
-}
-```
-
-#### POST `/api/stream` - 流式聊天（支持 RAG）
-
-**请求体：**
 ```json
 {
   "message": "你好",
   "history": [],
   "conversationId": "conv_123",
-  "enableRag": true
+  "enableRag": true,
+  "files": [{ "name": "手册.pdf", "textContent": "...", "isImage": false }]
 }
 ```
 
-**响应格式：** Server-Sent Events (SSE)
-
+SSE 响应：
 ```
-data: {"sources": [{"id": "doc_1", "title": "文档标题"}]}
-
 data: {"content": "你"}
-
 data: {"content": "好"}
-
-data: {"content": "！"}
-
 data: [DONE]
 ```
 
-#### GET `/api/usage` - 用量统计
+### POST `/api/chat/upload` — 文件上传
 
-**参数：**
-- `hours` (可选): 统计时间范围，默认 24 小时，最大 720 小时（30 天）
-
-**响应：**
+`multipart/form-data`，字段名 `file`。返回：
 ```json
 {
   "success": true,
   "data": {
-    "summary": {
-      "requestCount": 100,
-      "inputTokens": 5000,
-      "outputTokens": 3000,
-      "totalTokens": 8000,
-      "cachedTokens": 0,
-      "estimatedCost": 0.028
-    },
-    "trend": [
-      {
-        "label": "00:00",
-        "tokens": 500,
-        "requests": 10,
-        "estimatedCost": 0.002
-      }
-    ],
-    "rangeHours": 24,
-    "granularity": "hour"
-  },
-  "meta": {
-    "source": "server-runtime",
-    "updatedAt": "2024-01-01T12:00:00.000Z"
+    "url": "/uploads/xxx",
+    "name": "考试要点.docx",
+    "textContent": "...",
+    "isImage": false
   }
 }
 ```
 
 ---
 
-## ⚙️ 配置 / Configuration
+## ⚙️ 配置
 
 ### 环境变量
 
-| 环境变量 | 默认值 | 描述 |
-|----------|--------|------|
-| XUNFEI_API_KEY | (无) | 讯飞服务的 API Key |
-| XUNFEI_API_SECRET | (无) | 讯飞服务的 API Secret |
-| XUNFEI_APP_ID | (无) | 讯飞应用 ID |
-| PORT | 3000 | 后端监听端口 |
-| REDIS_URL | redis://localhost:6379 | Redis 连接地址 |
-| CHROMA_HOST | http://localhost:8000 | Chroma 向量数据库地址 |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `AI_API_KEY` | (无) | LLM API Key |
+| `AI_BASE_URL` | `https://maas-api.cn-huabei-1.xf-yun.com/v2` | API 地址 |
+| `AI_MODEL` | `xopqwen36v35b` | 模型名 |
+| `AI_MAX_TOKENS` | `4000` | 最大 Token |
+| `PORT` | `3000` | 后端端口 |
+| `JWT_SECRET` | `wut-rag-copilot-secret-key` | JWT 密钥 |
 
 ### localStorage 键名
 
-| 键名 | 描述 |
+| 键名 | 说明 |
 |------|------|
-| chat_conversations | 所有聊天会话 |
-| chat_current_conversation_id | 当前会话 ID |
-| chat_skills | 已导入的 Skills |
-| custom_prompts | 自定义提示词 |
-| darkMode | 深色模式状态 |
+| `chat_local_conversations_cache` | 会话列表缓存 |
+| `chat_current_conversation_id` | 当前会话 ID |
+| `chat_msgs_direct` | 消息直接备份 |
+| `chat_messages_backup` | 消息备份（独立） |
+| `chat_skills` | 已导入的 Skills |
+| `custom_prompts` | 自定义提示词 |
+| `darkMode` | 深色模式状态 |
+| `token` | JWT Token |
+| `tms_currentUser` | 当前用户信息 |
 
 ---
 
-## 📁 项目结构 / Project Structure
+## 📁 项目结构
 
 ```
-项目根目录/
-├── backend/                # Express 后端代码
+├── backend/                     # Express 后端
 │   ├── src/
-│   │   ├── app.js          # Express 启动入口
-│   │   ├── config/         # 配置文件
-│   │   ├── services/       # 服务层
-│   │   │   ├── chat.service.js      # 聊天服务
-│   │   │   ├── xunfei.service.js    # 讯飞星火服务
-│   │   │   ├── rag.service.js       # RAG 检索增强服务
-│   │   │   ├── chroma.service.js    # Chroma 向量数据库服务
-│   │   │   ├── embedding.service.js # 文本向量化服务
-│   │   │   ├── document.service.js  # 文档处理服务
-│   │   │   ├── redis.service.js     # Redis 会话存储服务
-│   │   │   └── auth.service.js      # 认证服务
-│   │   ├── routes/         # 路由
-│   │   │   ├── rag.routes.js        # RAG 路由
-│   │   │   ├── auth.routes.js       # 认证路由
-│   │   │   └── conversations.routes.js # 会话路由
-│   │   ├── controllers/    # 控制器
-│   │   ├── middleware/     # 中间件
-│   │   └── utils/          # 工具函数
+│   │   ├── app.js              # 入口 + 路由 + 中间件
+│   │   ├── config/index.js     # 配置（环境变量读取）
+│   │   ├── services/
+│   │   │   ├── ai.service.js       # AI 服务（OpenAI 兼容）
+│   │   │   ├── xunfei.service.js   # 讯飞星火服务
+│   │   │   ├── chat.service.js     # 聊天业务
+│   │   │   ├── rag.service.js      # RAG 服务
+│   │   │   ├── chroma.service.js   # Chroma 向量数据库
+│   │   │   ├── embedding.service.js # 向量化
+│   │   │   ├── document.service.js  # 文档处理
+│   │   │   ├── redis.service.js     # 内存存储 + JSON 文件持久化
+│   │   │   ├── auth.service.js      # 认证
+│   │   │   └── file-upload.service.js # 文件上传（multer）
+│   │   ├── controllers/
+│   │   │   └── chat.controller.js   # 标题生成等
+│   │   └── routes/
+│   │       ├── index.js
+│   │       ├── auth.routes.js
+│   │       ├── rag.routes.js
+│   │       └── conversations.routes.js
 │   └── package.json
-├── public/                 # 静态资源
-├── src/                    # 前端源代码 (Vue 3 + Pinia)
+├── src/                         # Vue 3 前端
 │   ├── views/
-│   │   ├── Login.vue       # 登录页面
-│   │   └── AIChat.vue      # 聊天主界面
+│   │   ├── Login.vue
+│   │   └── AIChat.vue           # 聊天主界面
 │   ├── components/
-│   │   ├── chat/           # 聊天相关组件
-│   │   │   ├── ChatBox.vue         # 输入框
-│   │   │   ├── MessageList.vue     # 消息列表
-│   │   │   ├── ConversationList.vue # 会话列表
+│   │   ├── chat/
+│   │   │   ├── ChatBox.vue          # 输入框（含文件上传）
+│   │   │   ├── MessageList.vue      # 消息列表
+│   │   │   ├── MessageBubble.vue    # 单条消息气泡
 │   │   │   ├── MarkdownRenderer.vue # Markdown 渲染
-│   │   │   ├── VoiceRecorder.vue   # 语音输入
-│   │   │   ├── SkillPanel.vue      # Skills 面板
-│   │   │   ├── PromptPanel.vue     # 提示词面板
-│   │   │   ├── CodeRunner.vue      # 代码运行器
-│   │   │   ├── McpPanel.vue        # MCP 协议面板
-│   │   │   ├── FeaturePanel.vue    # 功能面板
-│   │   │   └── PerformancePanel.vue # 性能监控面板
+│   │   │   ├── CodeBlock.vue        # 代码块组件
+│   │   │   ├── LazyMessage.vue      # 懒加载消息
+│   │   │   ├── VoiceRecorder.vue    # 语音输入
+│   │   │   ├── ConversationList.vue # 会话列表
+│   │   │   ├── SkillPanel.vue       # Skills 面板
+│   │   │   ├── PromptPanel.vue      # 提示词面板
+│   │   │   └── CodeRunner.vue       # 代码运行器
 │   │   ├── layout/
-│   │   │   └── Sidebar.vue         # 侧边栏
+│   │   │   └── Sidebar.vue
 │   │   └── common/
-│   │       └── ToastManager.vue    # 全局提示
-│   ├── stores/             # Pinia 状态管理
-│   │   ├── auth.store.js   # 用户认证
-│   │   ├── chat.store.js   # 聊天状态
-│   │   ├── skill.store.js  # Skills 管理
-│   │   ├── prompt.store.js # 提示词管理
-│   │   ├── mcp.store.js    # MCP 状态
-│   │   ├── language.store.js # 语言设置
-│   │   ├── theme.store.js  # 主题状态
-│   │   └── toast.store.js  # 提示状态
-│   ├── api/                # 前端请求封装
+│   │       ├── SettingsPanel.vue
+│   │       ├── ProfilePanel.vue
+│   │       └── ErrorBoundary.vue
+│   ├── stores/                  # Pinia 状态管理
+│   │   ├── auth.store.js
+│   │   ├── chat.store.js        # 组合 store
+│   │   ├── conversation.store.js # 会话管理 + localStorage 持久化
+│   │   ├── message.store.js     # 消息发送/流式接收
+│   │   ├── skill.store.js
+│   │   ├── prompt.store.js
+│   │   ├── theme.store.js
+│   │   ├── language.store.js
+│   │   └── toast.store.js
+│   ├── api/
+│   │   ├── client.js            # 请求封装（认证头）
+│   │   ├── chat.js              # 聊天 API + SSE 流式
 │   │   ├── auth.js
-│   │   └── chat.js
-│   ├── i18n/
-│   │   └── messages.js     # 国际化文案
-│   ├── router/
-│   │   └── index.js        # 路由配置
-│   ├── App.vue             # 根组件
-│   └── main.js             # 入口文件
+│   │   └── conversations.js
+│   ├── composables/
+│   │   ├── useMarkdownRenderer.js
+│   │   ├── useCodeHighlighter.js
+│   │   └── useChat.js
+│   ├── utils/
+│   │   ├── chatHelpers.js
+│   │   └── errorHandler.js
+│   ├── workers/
+│   │   └── markdown.worker.js   # Web Worker（大 Markdown 渲染）
+│   └── __tests__/
+├── uploads/                     # 上传文件存储
+├── data/                        # 持久化数据
+│   └── store.json               # 后端内存存储的持久化文件
 ├── package.json
 ├── vite.config.js
 └── README.md
@@ -369,75 +290,57 @@ data: [DONE]
 
 ---
 
-## 🛠️ 技术栈 / Tech Stack
+## 🛠️ 技术栈
 
 ### 前端
-- **Vue 3.5** - 渐进式 JavaScript 框架，使用 Composition API
-- **Pinia 2.1** - Vue 官方状态管理
-- **Vue Router 4** - 路由管理
-- **Tailwind CSS 4** - 原子化 CSS 框架
-- **Vite 6** - 下一代前端构建工具
-- **highlight.js** - 代码高亮
-- **markdown-it** - Markdown 解析
-- **lucide-vue-next** - 图标库
-- **DOMPurify** - XSS 防护
+- **Vue 3.5** — Composition API + `<script setup>`
+- **Pinia 2.1** — 状态管理
+- **Vue Router 4** — 路由
+- **Tailwind CSS 4** — 原子化 CSS
+- **Vite 6** — 构建工具
+- **highlight.js** — 代码高亮（动态语言加载）
+- **markdown-it** — Markdown 解析
+- **lucide-vue-next** — 图标
+- **DOMPurify** — XSS 防护
+- **Web Worker** — 离线渲染
 
 ### 后端
-- **Node.js** - JavaScript 运行时
-- **Express 4** - Web 框架
-- **WebSocket (ws)** - WebSocket 支持
-- **jsonwebtoken** - JWT 认证
-- **helmet** - 安全中间件
-- **morgan** - 日志中间件
-- **dotenv** - 环境变量管理
-- **multer** - 文件上传处理
-- **mammoth** - Word 文档解析
-- **pdf-parse** - PDF 文档解析
+- **Node.js + Express 4**
+- **jsonwebtoken** — JWT 认证
+- **multer** — 文件上传
+- **mammoth** — Word 文档解析
+- **pdf-parse** — PDF 解析
+- **helmet** — 安全头
+- **morgan** — 日志
+- **express-rate-limit** — 速率限制
 
 ### 数据存储
-- **Redis** - 会话数据持久化
-- **Chroma** - 向量数据库（RAG 知识库）
+- **In-Memory + JSON 文件** — 会话数据持久化（替代 Redis）
+- **localStorage** — 前端缓存与备份
+- **Chroma** — 向量数据库（RAG 知识库）
 
 ### AI 服务
-- **讯飞星火大模型** - 智能对话服务
+- **讯飞星火大模型 / 通义千问**（OpenAI 兼容接口）
 
 ---
 
-## 🤝 贡献 / Contributing
+## 🤝 贡献
 
-欢迎贡献！流程：
-
-1. Fork 本仓库
-2. 新建分支：`git checkout -b feature/YourFeature`
-3. 提交并推送：`git commit -m "feat: 描述你的改动" && git push origin feature/YourFeature`
-4. 提交 PR 并在描述中说明改动与测试方式
+1. Fork → `git checkout -b feature/xxx`
+2. Commit → Push → PR
 
 ### 提交规范
-
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式调整
-- `refactor`: 代码重构
-- `test`: 测试相关
-- `chore`: 构建/工具相关
+`feat` / `fix` / `docs` / `style` / `refactor` / `test` / `chore`
 
 ---
 
-## 📄 许可证 / License
+## 📄 许可证
 
-本项目使用 MIT 许可证 — 详见 `LICENSE` 文件。
-
----
-
-## 🙏 致谢 / Acknowledgments
-
-- 感谢讯飞提供的星火大模型服务
-- 感谢使用的开源库：Vue 3、Pinia、Vite、Tailwind CSS、highlight.js、markdown-it、Chroma、Redis 等
+MIT
 
 ---
 
-## 联系方式 / Contact
+## 联系方式
 
-- 项目链接：https://github.com/L123121/Vue3_WUT_LLM
-- 问题反馈：请通过 GitHub Issues 提交
+- 项目: https://github.com/L123121/Vue3_WUT_LLM
+- Issues: GitHub Issues

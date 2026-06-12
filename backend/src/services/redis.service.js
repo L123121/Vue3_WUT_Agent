@@ -1,259 +1,212 @@
-const Redis = require('ioredis');
+"use strict";
 
-// Redis 配置
-const redisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: process.env.REDIS_PORT || 6379,
-  password: process.env.REDIS_PASSWORD || '',
-  db: process.env.REDIS_DB || 0,
-  retryStrategy: (times) => {
-    if (times > 3) {
-      console.error('Redis 连接失败，超过最大重试次数');
-      return null;
-    }
-    return Math.min(times * 1000, 3000);
-  },
-};
-
-// 创建 Redis 客户端
-const redis = new Redis(redisConfig);
-
-redis.on('connect', () => {
-  console.log('✅ Redis 连接成功');
-});
-
-redis.on('error', (err) => {
-  console.error('❌ Redis 连接错误:', err.message);
-});
-
-// 会话过期时间（7天）
-const CONVERSATION_TTL = 7 * 24 * 60 * 60;
-const CONVERSATION_MAX_MESSAGES = 500;
+const fs = require('fs');
+const path = require('path');
 
 /**
- * 会话存储服务
- * 数据结构设计：
- * - user:{userId}:conversations -> Set (会话ID列表)
- * - conversation:{convId} -> Hash (会话详情：title, createdAt, updatedAt)
- * - conversation:{convId}:messages -> List (消息列表)
+ * 文件持久化内存存储 — 替代 Redis
+ *
+ * 所有数据存内存，同时自动写入 JSON 文件，重启后恢复。
+ * 数据文件路径：backend/data/store.json
  */
-class ConversationStore {
-  /**
-   * 创建会话
-   */
-  async createConversation(userId, title = '新会话') {
-    const convId = `conv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const now = Date.now();
 
-    // 使用事务保证原子性
-    const pipeline = redis.pipeline();
+const DATA_DIR = path.join(__dirname, '../../data');
+const DATA_FILE = path.join(DATA_DIR, 'store.json');
 
-    // 添加到用户的会话列表
-    pipeline.sadd(`user:${userId}:conversations`, convId);
+// ========== 通用内存 key-value 存储（替代 ioredis 命令） ==========
 
-    // 存储会话详情
-    pipeline.hset(`conversation:${convId}`, {
-      title,
-      createdAt: now,
-      updatedAt: now,
-      userId,
-    });
+class MemoryStore {
+  constructor() {
+    this._data = new Map();   // hash / list / string 数据
+    this._sets = new Map();   // set 数据
+    this._saveTimer = null;
+    this._dirty = false;
 
-    // 设置过期时间
-    pipeline.expire(`conversation:${convId}`, CONVERSATION_TTL);
-    pipeline.expire(`conversation:${convId}:messages`, CONVERSATION_TTL);
-
-    await pipeline.exec();
-
-    return {
-      id: convId,
-      title,
-      messages: [],
-      createdAt: new Date(now),
-      updatedAt: new Date(now),
-    };
+    // 启动时从文件恢复
+    this._load();
   }
 
-  /**
-   * 获取用户所有会话
-   */
-  async getConversations(userId) {
-    // 获取用户的所有会话ID
-    const convIds = await redis.smembers(`user:${userId}:conversations`);
+  // ==================== 持久化 ====================
 
-    if (!convIds || convIds.length === 0) {
-      return [];
-    }
-
-    // 批量获取会话详情
-    const pipeline = redis.pipeline();
-    convIds.forEach((convId) => {
-      pipeline.hgetall(`conversation:${convId}`);
-    });
-
-    const results = await pipeline.exec();
-
-    const conversations = [];
-    for (let i = 0; i < convIds.length; i++) {
-      const [err, data] = results[i];
-      if (!err && data) {
-        conversations.push({
-          id: convIds[i],
-          title: data.title || '新会话',
-          createdAt: new Date(parseInt(data.createdAt)),
-          updatedAt: new Date(parseInt(data.updatedAt)),
-        });
+  _load() {
+    try {
+      if (!fs.existsSync(DATA_FILE)) return;
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const json = JSON.parse(raw);
+      if (json._data) {
+        this._data = new Map(Object.entries(json._data));
       }
+      if (json._sets) {
+        this._sets = new Map(
+          Object.entries(json._sets).map(([k, v]) => [k, new Set(v)])
+        );
+      }
+      console.log(`[Store] 从 ${DATA_FILE} 恢复了数据`);
+    } catch (e) {
+      console.warn('[Store] 数据文件读取失败（首次运行可忽略）:', e.message);
     }
-
-    // 按更新时间倒序排列
-    conversations.sort((a, b) => b.updatedAt - a.updatedAt);
-
-    return conversations;
   }
 
-  /**
-   * 获取会话消息
-   */
-  async getMessages(convId, limit = 100) {
-    // 获取最新的 limit 条消息
-    const messages = await redis.lrange(`conversation:${convId}:messages`, -limit, -1);
-
-    return messages.map((msg) => {
+  _scheduleSave() {
+    this._dirty = true;
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => {
       try {
-        return JSON.parse(msg);
-      } catch {
-        return null;
+        if (!this._dirty) return;
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        const json = JSON.stringify({
+          _data: Object.fromEntries(this._data),
+          _sets: Object.fromEntries(
+            [...this._sets].map(([k, v]) => [k, [...v]])
+          ),
+        });
+        fs.writeFileSync(DATA_FILE, json, 'utf-8');
+        this._dirty = false;
+      } catch (e) {
+        console.error('[Store] 持久化写入失败:', e.message);
       }
-    }).filter(Boolean);
+      this._saveTimer = null;
+    }, 200);
   }
 
-  /**
-   * 获取单个会话详情（含消息）
-   */
-  async getConversation(userId, convId) {
-    // 验证会话归属
-    const belongs = await redis.sismember(`user:${userId}:conversations`, convId);
-    if (!belongs) {
-      return null;
-    }
+  // ==================== Pipeline ====================
 
-    const [details, messages] = await Promise.all([
-      redis.hgetall(`conversation:${convId}`),
-      this.getMessages(convId),
-    ]);
-
-    if (!details || !details.title) {
-      return null;
-    }
-
+  pipeline() {
+    const ops = [];
+    const exec = async () => {
+      const results = [];
+      for (const [cmd, args] of ops) {
+        try {
+          const val = await this[cmd](...args);
+          results.push([null, val]);
+        } catch (e) {
+          results.push([e, null]);
+        }
+      }
+      return results;
+    };
     return {
-      id: convId,
-      title: details.title,
-      messages,
-      createdAt: new Date(parseInt(details.createdAt)),
-      updatedAt: new Date(parseInt(details.updatedAt)),
+      sadd: (k, v) => ops.push(['sadd', [k, v]]),
+      srem: (k, v) => ops.push(['srem', [k, v]]),
+      smembers: (k) => ops.push(['smembers', [k]]),
+      scard: (k) => ops.push(['scard', [k]]),
+      hset: (k, ...args) => ops.push(['hset', [k, ...args]]),
+      hgetall: (k) => ops.push(['hgetall', [k]]),
+      hget: (k, f) => ops.push(['hget', [k, f]]),
+      rpush: (k, v) => ops.push(['rpush', [k, v]]),
+      lrange: (k, start, end) => ops.push(['lrange', [k, start, end]]),
+      llen: (k) => ops.push(['llen', [k]]),
+      ltrim: (k, start, end) => ops.push(['ltrim', [k, start, end]]),
+      del: (k) => ops.push(['del', [k]]),
+      expire: () => { /* no-op */ },
+      exec,
     };
   }
 
-  /**
-   * 添加消息
-   */
-  async addMessage(convId, message) {
-    const pipeline = redis.pipeline();
+  // ==================== Set 操作 ====================
 
-    // 添加消息到列表
-    pipeline.rpush(`conversation:${convId}:messages`, JSON.stringify(message));
-
-    // 更新会话时间
-    pipeline.hset(`conversation:${convId}`, 'updatedAt', Date.now());
-
-    // 续期会话 TTL
-    pipeline.expire(`conversation:${convId}`, CONVERSATION_TTL);
-    pipeline.expire(`conversation:${convId}:messages`, CONVERSATION_TTL);
-
-    await pipeline.exec();
-
-    // 限制消息数量，超出时删除最早的消息
-    const msgCount = await redis.llen(`conversation:${convId}:messages`);
-    if (msgCount > CONVERSATION_MAX_MESSAGES) {
-      await redis.ltrim(`conversation:${convId}:messages`, -CONVERSATION_MAX_MESSAGES, -1);
-    }
+  async sadd(key, value) {
+    if (!this._sets.has(key)) this._sets.set(key, new Set());
+    this._sets.get(key).add(value);
+    this._scheduleSave();
+    return 1;
   }
 
-  /**
-   * 重命名会话
-   */
-  async renameConversation(userId, convId, title) {
-    const belongs = await redis.sismember(`user:${userId}:conversations`, convId);
-    if (!belongs) {
-      return false;
-    }
-
-    await redis.hset(`conversation:${convId}`, 'title', title);
-    return true;
+  async srem(key, value) {
+    const set = this._sets.get(key);
+    if (!set) return 0;
+    set.delete(value);
+    this._scheduleSave();
+    return 1;
   }
 
-  /**
-   * 删除会话
-   */
-  async deleteConversation(userId, convId) {
-    const belongs = await redis.sismember(`user:${userId}:conversations`, convId);
-    if (!belongs) {
-      return false;
-    }
-
-    const pipeline = redis.pipeline();
-
-    // 从用户会话列表移除
-    pipeline.srem(`user:${userId}:conversations`, convId);
-
-    // 删除会话详情和消息
-    pipeline.del(`conversation:${convId}`);
-    pipeline.del(`conversation:${convId}:messages`);
-
-    await pipeline.exec();
-    return true;
+  async smembers(key) {
+    const set = this._sets.get(key);
+    return set ? [...set] : [];
   }
 
-  /**
-   * 清空会话消息
-   */
-  async clearMessages(userId, convId) {
-    const belongs = await redis.sismember(`user:${userId}:conversations`, convId);
-    if (!belongs) {
-      return false;
-    }
-
-    await redis.del(`conversation:${convId}:messages`);
-    return true;
+  async scard(key) {
+    const set = this._sets.get(key);
+    return set ? set.size : 0;
   }
 
-  /**
-   * 删除用户所有会话
-   */
-  async deleteAllConversations(userId) {
-    const convIds = await redis.smembers(`user:${userId}:conversations`);
-
-    if (!convIds || convIds.length === 0) {
-      return;
-    }
-
-    const pipeline = redis.pipeline();
-
-    convIds.forEach((convId) => {
-      pipeline.del(`conversation:${convId}`);
-      pipeline.del(`conversation:${convId}:messages`);
-    });
-
-    pipeline.del(`user:${userId}:conversations`);
-
-    await pipeline.exec();
+  async sismember(key, value) {
+    const set = this._sets.get(key);
+    return set ? set.has(value) : false;
   }
+
+  // ==================== Hash 操作 ====================
+
+  async hset(key, ...args) {
+    if (!this._data.has(key)) this._data.set(key, {});
+    const obj = this._data.get(key);
+    if (args.length === 1 && typeof args[0] === 'object') {
+      Object.assign(obj, args[0]);
+    } else {
+      for (let i = 0; i < args.length; i += 2) {
+        obj[args[i]] = args[i + 1];
+      }
+    }
+    this._scheduleSave();
+    return args.length / 2;
+  }
+
+  async hgetall(key) {
+    return this._data.get(key) || null;
+  }
+
+  async hget(key, field) {
+    const obj = this._data.get(key);
+    return obj ? obj[field] : null;
+  }
+
+  // ==================== List 操作 ====================
+
+  async rpush(key, value) {
+    if (!this._data.has(key)) this._data.set(key, []);
+    this._data.get(key).push(value);
+    this._scheduleSave();
+    return 1;
+  }
+
+  async lrange(key, start, end) {
+    const list = this._data.get(key) || [];
+    if (end === -1) return list.slice(start);
+    return list.slice(start, end + 1);
+  }
+
+  async llen(key) {
+    const list = this._data.get(key);
+    return list ? list.length : 0;
+  }
+
+  async ltrim(key, start, end) {
+    const list = this._data.get(key);
+    if (!list) return;
+    this._data.set(key, end === -1 ? list.slice(start) : list.slice(start, end + 1));
+    this._scheduleSave();
+  }
+
+  // ==================== Key 操作 ====================
+
+  async del(key) {
+    this._data.delete(key);
+    this._sets.delete(key);
+    this._scheduleSave();
+    return 1;
+  }
+
+  // ==================== 其他 ====================
+
+  async expire() { /* no-op, 内存模式 TTL 无意义 */ }
+
+  // ==================== 状态 ====================
+
+  get status() { return 'ready'; }
 }
 
-module.exports = {
-  redis,
-  conversationStore: new ConversationStore(),
-  CONVERSATION_TTL,
-};
+const redis = new MemoryStore();
+
+module.exports = { redis };

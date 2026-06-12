@@ -27,10 +27,11 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    const basename = path.basename(file.originalname, ext);
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, `${basename}-${uniqueSuffix}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase();
+    // 使用纯 ASCII 文件名保存，避免中文编码问题
+    const timestamp = Date.now();
+    const random = Math.round(Math.random() * 1E9);
+    cb(null, `upload-${timestamp}-${random}${ext}`);
   }
 });
 
@@ -48,6 +49,20 @@ const upload = multer({
     } else {
       cb(new Error(`不支持的文件类型: ${ext}`));
     }
+  }
+});
+
+// 聊天文件上传（允许图片 + 文档）
+const chatUpload = multer({
+  storage,
+  limits: {
+    fileSize: 20 * 1024 * 1024 // 20MB
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = ['.jpg','.jpeg','.png','.gif','.webp','.svg',
+                     '.pdf','.docx','.doc','.txt','.md'];
+    cb(null, allowed.includes(ext));
   }
 });
 
@@ -116,6 +131,7 @@ function cleanupFile(filePath) {
 
 module.exports = {
   upload,
+  chatUpload,
   parseFile,
   cleanupFile,
   uploadDir

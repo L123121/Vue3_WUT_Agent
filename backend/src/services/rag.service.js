@@ -1,13 +1,13 @@
 "use strict";
 
-const { AnthropicService } = require('./anthropic.service');
+const { AiService } = require('./ai.service');
 const { ChatdocService } = require('./chatdoc.service');
 const { DocumentService } = require('./document.service');
 const config = require('../config');
 
 class RagService {
   constructor() {
-    this.anthropicService = new AnthropicService();
+    this.aiService = new AiService();
     this.chatdocService = new ChatdocService();
     this.documentService = new DocumentService();
     this.maxContextLength = 2000;
@@ -86,12 +86,12 @@ ${context}
     }
 
     // 无知识库文档时直接问答
-    const result = await this.anthropicService.getCompletion(message, history);
+    const result = await this.aiService.getCompletion(message, history);
     return {
       reply: result.content,
       isMock: result.isMock,
       sources: [],
-      model: config.xunfei.model
+      model: config.ai.model || 'Qwen3.6-35B-A3B'
     };
   }
 
@@ -142,7 +142,7 @@ ${context}
     }
 
     // 无知识库时直接问答
-    for await (const chunk of this.anthropicService.getCompletionStream(message, history)) {
+    for await (const chunk of this.aiService.getCompletionStream(message, history)) {
       yield {
         type: 'content',
         content: chunk.content,

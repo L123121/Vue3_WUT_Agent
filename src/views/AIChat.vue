@@ -17,8 +17,8 @@ const currentTitle = computed(() => chatStore.currentConversation?.title || text
 const effectiveMessageCount = computed(() => chatStore.messages.filter((msg) => msg.id !== 'welcome' && msg.text?.trim()).length);
 const canClear = computed(() => effectiveMessageCount.value > 0 && !chatStore.isLoading);
 
-const handleSend = async (message, enableRag = false) => {
-  await chatStore.sendMessage(message, enableRag);
+const handleSend = async (message, enableRag = false, fileData = null) => {
+  await chatStore.sendMessage(message, enableRag, null, fileData);
   scrollToBottom();
 };
 
@@ -77,7 +77,8 @@ const exportConversation = () => {
 };
 
 const initializeChat = async () => {
-  await chatStore.loadConversations();
+  // forceRefresh=true：切换页面回来时从 localStorage 重新加载（本地模式）
+  await chatStore.loadConversations(true);
   if (chatStore.currentConversationId) {
     await chatStore.loadConversationMessages(chatStore.currentConversationId);
   }
@@ -92,7 +93,12 @@ const scrollToBottom = async () => {
 watch(() => chatStore.messages.length, scrollToBottom);
 watch(() => chatStore.currentConversationId, scrollToBottom);
 onMounted(() => {
-  initializeChat();
+  // Pinia store 跨路由切换保持存活。
+  // 只有首次加载（页面刷新）才需要从 localStorage/后端拉数据，
+  // 切换标签页回来时 store 里的消息仍然存在，无需重新加载。
+  if (!chatStore.isLoaded) {
+    initializeChat();
+  }
 });
 </script>
 

@@ -5,15 +5,18 @@ import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 import './style.css';
 import router from './router/index.js';
 import App from './App.vue';
-import { usePerformanceMonitor } from './utils/performance.js';
+import { setupGlobalErrorHandler } from './utils/errorHandler.js';
+import { useToastStore } from './stores/toast.store.js';
 
 const app = createApp(App);
+const pinia = createPinia();
 
-app.use(createPinia());
+app.use(pinia);
 app.use(router);
 app.use(VueVirtualScroller);
-app.mount('#app');
 
-// 启动性能监控
-const performanceMonitor = usePerformanceMonitor();
-performanceMonitor.startMonitoring();
+// Global error handling
+const toastStore = useToastStore();
+setupGlobalErrorHandler(app, toastStore);
+
+app.mount('#app');

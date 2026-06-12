@@ -1,0 +1,5 @@
+# 运行数据（不上传到 Git）
+uploads/*
+!uploads/.gitkeep
+data/*
+!data/.gitkeep

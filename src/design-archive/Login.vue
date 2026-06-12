@@ -51,7 +51,7 @@ const handleSubmit = async () => {
     }
   } catch (err) {
     // 后端不可用时，使用本地验证
-    if (authStore.verifyPassword(password.value)) {
+    if (await authStore.verifyPassword(password.value)) {
       authStore.login({
         id: 'u1',
         name: username.value || text.fallbackName,

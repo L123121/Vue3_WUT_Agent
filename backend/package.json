@@ -5,18 +5,16 @@
   "scripts": {
     "dev": "nodemon src/app.js",
     "start": "node src/app.js",
-    "build": "echo \"No build step required\"",
+    "build": "cd .. && npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "axios": "^1.15.2",
-    "chromadb": "^3.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.4.1",
     "helmet": "^7.0.0",
-    "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "mammoth": "^1.12.0",
     "morgan": "^1.10.0",

@@ -1,0 +1,58 @@
+import js from '@eslint/js';
+import pluginVue from 'eslint-plugin-vue';
+
+export default [
+  js.configs.recommended,
+  ...pluginVue.configs['flat/recommended'],
+  {
+    files: ['**/*.{js,vue}'],
+    languageOptions: {
+      globals: {
+        document: 'readonly',
+        window: 'readonly',
+        navigator: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        Blob: 'readonly',
+        FormData: 'readonly',
+        TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        AbortController: 'readonly',
+        FileReader: 'readonly',
+        PerformanceObserver: 'readonly',
+        performance: 'readonly',
+        crypto: 'readonly',
+        alert: 'readonly',
+        confirm: 'readonly',
+        console: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
+        Headers: 'readonly',
+      },
+    },
+    rules: {
+      'vue/multi-word-component-names': 'off',
+      'vue/no-unused-vars': 'warn',
+      'vue/no-v-html': 'off',
+      'vue/max-attributes-per-line': 'off',
+      'vue/singleline-html-element-content-newline': 'off',
+      'vue/attributes-order': 'off',
+      'vue/html-self-closing': 'off',
+      'vue/valid-v-memo': 'warn',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'no-empty': ['error', { allowEmptyCatch: true }],
+      'no-useless-escape': 'warn',
+    },
+  },
+  {
+    ignores: ['dist/**', 'node_modules/**', 'backend/**'],
+  },
+];

@@ -4,10 +4,14 @@ import { apiGet, apiPost, apiPut, apiDelete } from './client.js';
  * 获取用户所有会话
  */
 export const fetchConversations = async () => {
-  const response = await apiGet('/conversations');
-  if (!response.ok) return [];
-  const data = await response.json();
-  return data.data || [];
+  try {
+    const response = await apiGet('/conversations');
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    console.warn('获取会话列表失败，使用本地存储:', error.message);
+    return [];
+  }
 };
 
 /**

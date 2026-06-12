@@ -305,6 +305,67 @@ class XunfeiService {
     yield { content: '', done: true };
   }
 
+  /**
+   * 获取原始响应流（零解析，直接管道转发）
+   * 只做认证和请求，不解析任何 content，把原始 IncomingMessage 返回
+   */
+  async getRawStream(message, history = []) {
+    const messages = this._buildMessages(message, history);
+    const payload = {
+      model: this.model,
+      messages,
+      max_tokens: this.maxTokens,
+      temperature: this.temperature,
+      stream: true,
+    };
+
+    const isMaasCodingApi = this.baseUrl.includes('maas-coding-api');
+    const host = isMaasCodingApi
+      ? 'maas-coding-api.cn-huabei-1.xf-yun.com'
+      : 'maas-api.cn-huabei-1.xf-yun.com';
+
+    const options = isMaasCodingApi
+      ? {
+          hostname: host,
+          port: 443,
+          path: '/v2/chat/completions',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.apiKey}:${this.apiSecret}`,
+          },
+          timeout: this.timeout,
+        }
+      : {
+          hostname: host,
+          port: 443,
+          path: '/v2/chat/completions',
+          method: 'POST',
+          headers: this._generateHmacAuthHeaders(),
+          timeout: this.timeout,
+        };
+
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, (incoming) => {
+        if (incoming.statusCode !== 200) {
+          let errorData = '';
+          incoming.on('data', (chunk) => { errorData += chunk; });
+          incoming.on('end', () => {
+            console.error(`[讯飞流式] 错误状态码: ${incoming.statusCode}, 响应: ${errorData}`);
+            reject(new Error(`API error ${incoming.statusCode}`));
+          });
+          return;
+        }
+        // 返回原始 IncomingMessage，由调用方直接 pipe
+        resolve(incoming);
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('请求超时')); });
+      req.write(JSON.stringify(payload));
+      req.end();
+    });
+  }
+
   getMockResponse(message) {
     console.log('[模拟模式] 使用模拟响应');
     const responses = [

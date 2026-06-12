@@ -4,18 +4,18 @@ const INITIAL_RETRY_DELAY = 1000;
 const MAX_RETRY_DELAY = 30000;
 const HEARTBEAT_INTERVAL = 30000;
 const HEARTBEAT_TIMEOUT = 10000;
+const STREAM_STALL_TIMEOUT = 60000; // 60s without data = stalled
 
 import { getAuthHeaders, apiGet, apiPost } from './client.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 指数退避延迟
 const getExponentialDelay = (attempt) => {
   const delayMs = Math.min(INITIAL_RETRY_DELAY * Math.pow(2, attempt), MAX_RETRY_DELAY);
-  return delayMs + Math.random() * 1000; // 添加随机抖动
+  return delayMs + Math.random() * 1000;
 };
 
-// 连接状态管理
+// Connection state management
 export const connectionManager = {
   isConnected: true,
   lastHeartbeat: Date.now(),
@@ -28,7 +28,7 @@ export const connectionManager = {
   },
 
   notify(event, data) {
-    this.listeners.forEach(cb => cb(event, data));
+    this.listeners.forEach((cb) => cb(event, data));
   },
 
   setConnected(connected) {
@@ -36,6 +36,7 @@ export const connectionManager = {
     this.isConnected = connected;
     if (wasConnected !== connected) {
       this.notify(connected ? 'connected' : 'disconnected');
+      if (connected) this.flushPendingMessages();
     }
   },
 
@@ -45,7 +46,7 @@ export const connectionManager = {
   },
 
   removePendingMessage(id) {
-    this.pendingMessages = this.pendingMessages.filter(m => m.id !== id);
+    this.pendingMessages = this.pendingMessages.filter((m) => m.id !== id);
     this.savePendingMessages();
   },
 
@@ -71,12 +72,17 @@ export const connectionManager = {
   clearPendingMessages() {
     this.pendingMessages = [];
     localStorage.removeItem('pending_messages');
-  }
+  },
+
+  async flushPendingMessages() {
+    if (this.pendingMessages.length === 0) return;
+    // Notify listeners about pending messages to flush
+    this.notify('flush-pending', this.pendingMessages);
+  },
 };
 
-// 心跳检测
+// Heartbeat
 let heartbeatTimer = null;
-let heartbeatCheckTimer = null;
 
 const startHeartbeat = () => {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
@@ -90,7 +96,7 @@ const startHeartbeat = () => {
 
       const response = await fetch(`${API_URL}/health`, {
         method: 'GET',
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -101,17 +107,16 @@ const startHeartbeat = () => {
       } else {
         connectionManager.setConnected(false);
       }
-    } catch (error) {
-      console.warn('Heartbeat failed:', error.message);
+    } catch {
       connectionManager.setConnected(false);
     }
   }, HEARTBEAT_INTERVAL);
 };
 
-// 初始化连接管理
 connectionManager.loadPendingMessages();
 startHeartbeat();
 
+// Non-streaming message
 export const sendMessageToBackend = async (message, history = [], retries = MAX_RETRIES) => {
   try {
     const response = await fetch(API_URL, {
@@ -120,9 +125,7 @@ export const sendMessageToBackend = async (message, history = [], retries = MAX_
       body: JSON.stringify({ message, history }),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const data = await response.json();
     connectionManager.setConnected(true);
@@ -133,7 +136,6 @@ export const sendMessageToBackend = async (message, history = [], retries = MAX_
 
     if (retries > 0) {
       const retryDelay = getExponentialDelay(MAX_RETRIES - retries);
-      console.log(`Retrying in ${retryDelay}ms... (${retries} attempts left)`);
       await delay(retryDelay);
       return sendMessageToBackend(message, history, retries - 1);
     }
@@ -141,6 +143,7 @@ export const sendMessageToBackend = async (message, history = [], retries = MAX_
   }
 };
 
+// Streaming message with stall detection
 export const sendMessageStream = async (message, history = [], callbacks, options = {}) => {
   const controller = options.signal ? { abort: () => {} } : new AbortController();
   const signal = options.signal || controller.signal;
@@ -149,7 +152,6 @@ export const sendMessageStream = async (message, history = [], callbacks, option
   const conversationId = options.conversationId;
   const enableRag = options.enableRag ?? false;
 
-  // 添加到待发送队列
   const messageId = `msg_${Date.now()}`;
   if (attempt === 0) {
     connectionManager.addPendingMessage({ id: messageId, message, history, conversationId });
@@ -159,7 +161,7 @@ export const sendMessageStream = async (message, history = [], callbacks, option
     const response = await fetch(`${API_URL}/stream`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ message, history, conversationId, enableRag }),
+      body: JSON.stringify({ message, history, conversationId, enableRag, files: options.files || [] }),
       signal,
     });
 
@@ -172,40 +174,67 @@ export const sendMessageStream = async (message, history = [], callbacks, option
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let lastDataTime = Date.now();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        callbacks.onDone();
-        break;
+    // Stall detection timer
+    const stallCheck = setInterval(() => {
+      if (Date.now() - lastDataTime > STREAM_STALL_TIMEOUT) {
+        clearInterval(stallCheck);
+        reader.cancel();
+        connectionManager.setConnected(false);
+        // Will trigger reconnection via the catch block
       }
+    }, 5000);
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data:')) continue;
-
-        const data = trimmed.slice(5).trim();
-        if (data === '[DONE]') {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          clearInterval(stallCheck);
           callbacks.onDone();
-          return;
+          break;
         }
 
-        try {
-          const json = JSON.parse(data);
-          if (json.content) callbacks.onChunk(json.content);
-          if (json.sources) callbacks.onSources?.(json.sources);
-          if (json.error) {
-            callbacks.onError(new Error(json.error));
+        lastDataTime = Date.now();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+
+          const data = trimmed.slice(5).trim();
+          if (data === '[DONE]') {
+            clearInterval(stallCheck);
+            callbacks.onDone();
             return;
           }
-        } catch (parseError) {
-          // 跳过解析错误
+
+          try {
+            const json = JSON.parse(data);
+
+            // 兼容两种流式格式：
+            //   {"content":"..."}              — 标准格式
+            //   {"choices":[{"delta":{"content":"..."}}]} — OpenAI 兼容格式
+            let content = json.content;
+            if (!content && json.choices?.[0]?.delta?.content) {
+              content = json.choices[0].delta.content;
+            }
+            if (content) callbacks.onChunk(content);
+            if (json.sources) callbacks.onSources?.(json.sources);
+            if (json.error) {
+              clearInterval(stallCheck);
+              callbacks.onError(new Error(json.error));
+              return;
+            }
+          } catch {
+            // skip parse errors
+          }
         }
       }
+    } finally {
+      clearInterval(stallCheck);
     }
   } catch (error) {
     connectionManager.setConnected(false);
@@ -216,12 +245,16 @@ export const sendMessageStream = async (message, history = [], callbacks, option
       return;
     }
 
-    // 指数退避重连
+    // Exponential backoff retry
     if (attempt < maxRetries) {
       const retryDelay = getExponentialDelay(attempt);
       callbacks.onRetry?.(attempt + 1, maxRetries, retryDelay);
       await delay(retryDelay);
-      return sendMessageStream(message, history, callbacks, { ...options, attempt: attempt + 1, maxRetries });
+      return sendMessageStream(message, history, callbacks, {
+        ...options,
+        attempt: attempt + 1,
+        maxRetries,
+      });
     }
 
     connectionManager.removePendingMessage(messageId);
@@ -231,35 +264,43 @@ export const sendMessageStream = async (message, history = [], callbacks, option
 
 export const fetchUsageStats = async (hours = 24) => {
   const response = await apiGet(`/usage?hours=${hours}`);
-
-  if (!response.ok) {
-    throw new Error(`Usage API error: ${response.status}`);
-  }
+  if (!response.ok) throw new Error(`Usage API error: ${response.status}`);
 
   const payload = await response.json();
-  if (!payload?.success) {
-    throw new Error(payload?.error || 'Failed to fetch usage data');
-  }
+  if (!payload?.success) throw new Error(payload?.error || 'Failed to fetch usage data');
 
   return payload.data;
 };
 
-// 生成会话标题
+export const uploadChatFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // 注意：不设置 Content-Type，让浏览器自动设为 multipart/form-data
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/chat/upload`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || '文件上传失败');
+  }
+  return response.json();
+};
+
 export const generateTitle = async (message) => {
   try {
     const response = await apiPost('/chat/title', { message });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const data = await response.json();
     return data.title || message.slice(0, 18);
-  } catch (error) {
-    console.error('Generate title error:', error);
-    // 降级：返回消息前18个字符
+  } catch {
     return message.slice(0, 18);
   }
 };
-
-
